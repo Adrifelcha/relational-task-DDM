@@ -1,0 +1,57 @@
+---
+title: "Transforming .mat structure into R dataframe"
+author: "Adriana F. Chávez De la Peña"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, results='hide'}
+library(R.matlab)
+rawData <- readMat("../00_RawMaterial/relationTaskHCP.mat")
+data <- rawData$d
+data <- data[, , 1]
+str(data)
+```
+
+```{r}
+participantID <- data$participantID[1,]
+participant <- data$participant[1,]
+trial <- data$trial[1,]
+condition <- data$condition[1,]
+response <- data$response[1,]
+dimension <- data$dimension[1,]
+truth <- data$truth[1,]
+accuracy <- data$accuracy[1,]
+rt <- data$rt[1,]
+```
+
+```{r}
+datos <- as.data.frame(cbind(trial,participant,condition,dimension,response,truth,accuracy,rt))
+colnames(datos) <- c("trial","subID","cond","dim","resp","corr","acc","rt")
+```
+
+```{r}
+datos$subID <- participantID[datos$subID]
+```
+
+```{r}
+datos$info1 <- "relational"
+datos$info1[which(datos$cond=="1")] <- "control"
+datos$cond <- datos$info1
+datos$info1 <- NULL
+```
+
+```{r}
+datos$info2 <- "texture"
+datos$info2[which(datos$dim=="1")] <- "shape"
+datos$dim <- datos$info2
+datos$info2 <- NULL
+```
+
+```{r}
+write.csv(datos, "../00_RawMaterial/datos.csv", row.names = FALSE)
+```

@@ -1,0 +1,65 @@
+---
+title: "Untitled"
+author: "Adriana F. Chávez De la Peña"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+datos <- read.csv("../../00_RawMaterial/datos.csv")
+table(datos$trial)
+```
+
+
+```{r}
+x <- datos[datos$rt==0,]
+nrow(x)/nrow(datos)
+table(x$subID)
+length(names(table(x$subID)))
+```
+
+```{r}
+mean.acc <- tapply(datos$acc,list(datos$subID,datos$cond),mean)
+mean.acc <- as.data.frame(mean.acc)
+
+colCtl <- rgb(0, 100, 150, max = 255, alpha = 50, names = "blue50")
+colRlt <- rgb(150, 0, 150, max = 255, alpha = 50, names = "blue50")
+
+hist(mean.acc$control, col=colCtl, breaks=15, main="Accuracy")
+hist(mean.acc$relational,add=T, col=colRlt, breaks=15)
+legend("topleft",c("Control","Relational"),col = c(colCtl,colRlt), pch=16,
+       cex=0.7)
+```
+
+```{r}
+diff <- mean.acc$control-mean.acc$relational
+diff <- sort(diff)
+plot(diff, pch=16, col="green4", cex=0.8, ylab="Control-Relational", xlab="",
+     main="Accuracy difference across conditions")
+abline(h=0)
+abline(v=17.5)
+abline(v=14.5)
+```
+
+```{r}
+mean.RT <- tapply(datos$rt,list(datos$subID,datos$cond),mean)
+mean.RT <- as.data.frame(mean.RT)
+
+hist(mean.RT$relational, col=colRlt, breaks=15, main="Response Times")
+hist(mean.RT$control,add=T, col=colCtl, breaks=15)
+legend("topleft",c("Control","Relational"),col = c(colCtl,colRlt), pch=16,
+       cex=0.7)
+```
+
+```{r}
+diff <- mean.RT$relational-mean.RT$control
+diff <- sort(diff)
+plot(diff, pch=16, col="green4", cex=0.8, ylab="Relational-Control", xlab="",
+     main="RT difference across conditions")
+abline(h=0)
+abline(v=7)
+```
