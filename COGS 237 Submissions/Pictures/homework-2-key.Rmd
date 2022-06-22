@@ -1,0 +1,290 @@
+---
+title: "Homework 2"
+author: "Write your name here"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+```{r load_libraries, echo = FALSE}
+library(tinytex)
+library(tidyverse)
+```
+
+## Section 1
+
+**Background:** For this section, we will work with our coffee experiment. 
+This data set comes from an experiment designed to test whether drinking coffee 
+makes people smarter. Participants were divided into two groups. All 
+participants took an IQ test, but participants in **group 1** 
+drank water 5 minutes before the test, while participants in **group 2** drank 
+coffee. (**The data is not the same as in Homework 1**)
+
+We have two competing hypotheses (models). Model 1 states that drinking 
+coffee doesn't make a difference in IQ test scores between people who 
+drank water (group 1) and people who drank coffee (group 2). Model 2 predicts 
+that people who drank coffee will be smarter; in other words, the IQ 
+test scores should be different between groups (with group 2 being better than 
+group 1). Both hypotheses assume that variances are equal across observations 
+and groups.
+
+```{r load_data, echo = TRUE}
+
+link_1 <- "https://raw.githubusercontent.com/ManuelVU/psych-10c-data/main/hw-2-problem-1.csv"
+data1 <- read_csv(file = link_1)
+```
+
+1. Make a density graph of Model 1 (**no differences between groups**). Remember 
+that at this point, the actual values of x don't matter. We are
+interested in **what the model expects the data to look like**. Do it with a 
+variance equal to 3.
+
+```{r density-m1-s1, echo = TRUE, fig.align = 'center'}
+
+par(mai = c(1,0.1,0.1,0.1))
+curve(dnorm(x, mean = 0, sd = sqrt(3)), from = -4, to = 6,
+      axes = FALSE, ann = FALSE, col = "red", lwd = 3)
+curve(dnorm(x, mean = 0, sqrt(3)), col = "blue", add = T, lty = 3, lwd = 3)
+box(bty = "l")
+mtext(text = "IQ", side = 1, line = 2, cex = 1.6)
+legend("topleft", bty = "n", col = c("blue","red"), 
+       legend = c("coffee", "water"), lty = c(3, 1))
+```
+(.5 points for 2 identical curves w/ reasonably appropriate labels)
+
+
+2. Obtain the predictions of Model 1 add the required values as a 
+new variable (column) to the data set (remember to give this new variable a 
+name!). What are the values of IQ predicted by Model 1 for each group?
+
+```{r pred-m1-s1, echo = TRUE}
+data1 <- data1 %>% 
+  mutate("Model_1" = mean(iq))
+
+```
+
+**ANS:** `r mean(data1$iq)` for both groups (.5 pts)
+
+3. Calculate the squared error (SE) of each observation under Model 1 by adding
+a new column to our data set. What is the mean Sum of Squared Errors 
+(m-SSE) of the "no group differences" model (model 1)?
+
+```{r sse-m1-s1, echo = TRUE}
+data1 <- data1 %>% 
+  mutate("SE_1" = (iq - Model_1)^2)
+
+n_total <- nrow(data1)
+
+mse_1 <- 1/n_total * sum(data1$SE_1)
+```
+
+**ANS:** `r mse_1` (.5 pts)
+
+4. What is the value of the Bayesian Information Criterion (BIC) for Model 1?
+
+```{r bic-m1-s1, echo = TRUE}
+bic_1 <- n_total * log(mse_1) + log(n_total)
+```
+
+**ANS:** `r bic_1` (.5 pts.)
+
+5. Make a density graph of Model 2 (**coffee group is better**). Remember that 
+the actual values of x don't matter. Right now, we only want to visualize
+what the model expects the data to look like. Assume that the model variance 
+is equal to 3.
+
+```{r density-m2-s1, echo = TRUE, fig.align = 'center'}
+par(mai = c(1,0.1,0.1,0.1))
+curve(dnorm(x, mean = 0, sd = sqrt(3)), from = -4, to = 6,
+      axes = FALSE, ann = FALSE, col = "red", lwd = 3)
+curve(dnorm(x, mean = 2, sd = sqrt(3)), col = "blue", add = T, lty = 3, lwd = 3)
+box(bty = "l")
+mtext(text = "IQ", side = 1, line = 2, cex = 1.6)
+legend("topleft", bty = "n", col = c("blue","red"), 
+       legend = c("coffee", "water"), lty = c(3, 1))
+```
+(.5 pts for graph with coffee to the right of water and with appropriate labels; variance doesn't matter as long as it's the same for both curves)
+
+6. Obtain the predictions of Model 2 add the required values as a new variable 
+(column) to the data set (remember to give this new variable a DIFFERENT name!). 
+What are the values of IQ predicted by Model 2 for each group?
+
+```{r pred-m2-s1, echo = TRUE}
+mean_iq <- data1 %>% 
+  group_by(group) %>% 
+  summarise("mean" = mean(iq))
+
+data1 <- data1 %>% 
+  mutate("Model_2" = ifelse(test = group == "no_coffee", 
+                            yes = mean_iq$mean[2], no = mean_iq$mean[1]))
+```
+
+**ANS:** Coffee drinkers: `r mean_iq$mean[1]`, non-coffee drinkers: `r mean_iq$mean[1]` (.5 pts for getting both correct)
+
+7. Calculate the squared error (SE) for each observation under Model 2 by adding
+a new column to the data set (again, watch out the names you give to the new 
+column!). What is the mean Sum of Squared Errors (m-SSE) of this "group 
+differences" model (Model 2)?
+
+```{r sse-m2-s1, echo = TRUE}
+data1 <- data1 %>% 
+  mutate("SE_2" = (iq - Model_2)^2)
+
+n_total <- nrow(data1)
+
+mse_2 <- 1/n_total * sum(data1$SE_2)
+```
+
+**ANS:** `r mse_2` (.5 pts)
+
+8. What is the value of the Bayesian Information Criterion (BIC) for Model 2?
+
+```{r bic-m2-s1, echo = TRUE}
+bic_2 <- n_total * log(mse_2) + 2 * log(n_total)
+```
+
+**ANS:** `r bic_2` (.5 pts.)
+
+9. Which of the two models would you select and why?
+
+**ANS:** .5 pts for saying they would pick the one that had the lesser BIC AND saying that's why they'd pick it (even if the BIC they're using for that decision was incorrect)
+
+10. What does the Model that you selected tell us about our research question?
+
+**ANS:** .5 for saying something reasonable in the context of their BIC (if model 2 is better [which it should be], there are differences in IQ between coffee and non-coffee; if model 1 is better [which it shouldn't be, but we'll be taking points off earlier if they messed that up], there's no difference)
+
+
+## Section 2
+
+**Background:** For this section, we will work with our response time experiment. 
+This data set comes from an experiment designed to test whether a new 
+training technique can improve participants' ability to navigate a maze. 
+Participants first completed a maze after playing a game that lasted as long as 
+the new training approach. Then they underwent the new training and completed a 
+second maze of the same difficulty (we will assume that, if there is a difference 
+in response times, it is only because of the training and not because of experience 
+with maze solving). The data provides information about the time (in seconds) 
+in which each participant completed each maze. 
+(**The data is not the same as in Homework 1**)
+
+Once again, we have two competing models (hypotheses) about the performance of 
+participants on the maze before and after training. Model 1 (**no improvement**)
+states that the new training method wouldn't make any difference. In other 
+words, Model 1 predicts that there will be no improvement in terms of how 
+quickly people solve the maze after being trained. 
+
+Model 2 (**improvement**) states that the new training method should be
+effective, and so the time people need to solve the maze should be shorter 
+the second time (after participants have undergone the training).
+
+```{r load_data2, echo = TRUE}
+link_2 <- "https://raw.githubusercontent.com/ManuelVU/psych-10c-data/main/hw-2-problem-2.csv"
+data2 <- read_csv(file = link_2)
+
+```
+
+11. Make a density graph for Model 1 (**no improvement**). To make the plot, 
+assume that the model variance is equal to 2.
+
+```{r density-m1-s2, echo = TRUE, fig.align = 'center'}
+par(mai = c(1,0.1,0.1,0.1))
+curve(dnorm(x, mean = 0, sd = sqrt(2)), from = -4, to = 6,
+      axes = TRUE, ann = FALSE, col = "red", lwd = 3)
+box(bty = "l")
+mtext(text = "Improvement", side = 1, line = 2, cex = 1.6)
+legend("topleft", bty = "n", col = c("red"), 
+       legend = c("After - Before"), lty = c(1))
+```
+
+.5 pts for at least having just a single curve centered on 0. Ideally they'd have good labels too, but just getting it centered on 0 seems like enough of a challenge. And we're not worried about where any of the other numbers are, just that it's centered on 0.
+
+12. What are the predictions made by Model 1 (**no improvement**)? Again, make 
+sure to add the corresponding values as a new variable (column) to our data base.
+
+```{r pred-m1-s2, echo = TRUE}
+data2 <- data2 %>%
+  mutate('Difference' = response_time_after - response_time_before)
+
+n_total_2 <- nrow(data2)
+
+data2 <- data2 %>% 
+  mutate("Model_1" = rep(0,n_total_2))
+```
+
+**ANS:** 0 for all differences (.5 pts)
+
+13. Calculate the squared error (SE) of each observation for Model 1 and
+add them to the data set as a new variable. What is the mean Sum of Squared 
+Errors (m-SSE) of the "no improvement" model (Model 1)?
+
+```{r sse-m1-s2, echo = TRUE}
+data2 <- data2 %>% 
+  mutate("SE_1" = (Difference - Model_1)^2)
+
+mse_model_1 <- 1/n_total_2 * sum(data2$SE_1)
+```
+**ANS:** `r mse_model_1` (.5 pts)
+
+14. What is the value of the Bayesian Information Criterion for Model 1?
+
+```{r bic-m1-s2, echo = TRUE}
+bic_model_1 <- n_total_2 * log(mse_model_1)
+```
+
+**ANS:** **ANS:** `r bic_model_1` (.5 pts)
+
+15. Make a density graph for Model 2 (**improvement**). Remember that at 
+this point, the units (values of x) don't matter. We are only interested in what 
+the model expects the data to look like.
+
+```{r density-m2-s2, echo = TRUE, fig.align = 'center'}
+par(mai = c(1,0.1,0.1,0.1))
+curve(dnorm(x, mean = 1, sd = sqrt(2)), from = -4, to = 6,
+      axes = TRUE, ann = FALSE, col = "red", lwd = 3)
+box(bty = "l")
+mtext(text = "Improvement", side = 1, line = 2, cex = 1.6)
+legend("topleft", bty = "n", col = c("red"), 
+       legend = c("After - Before"), lty = c(1))
+```
+.5 pts for at least having just a single curve centered to the right of 0.
+
+16. Obtain the predictions of the second model and add them as a new variable 
+(column) to the data set (remember to give the variable a DIFFERENT name!). What 
+are the predictions of Model 2?
+
+```{r pred-m2-s2, echo = TRUE}
+data2 <- data2 %>% 
+  mutate("Model_2" = mean(Difference))
+```
+
+**ANS:** `r mean(data2$Difference)` for everything (.5 pts)
+
+17. Calculate the squared error (SE) of each observation for the second model 
+and add them to the data set as a new variable. What is the mean Sum of Squared 
+Errors (m-SSE) of the "improvement" model (model 2)?
+
+```{r sse-m2-s2, echo = TRUE}
+data2 <- data2 %>% 
+  mutate("SE_2" = (Difference - Model_2)^2)
+
+mse_model_2 <- 1/n_total_2 * sum(data2$SE_2)
+```
+
+**ANS:** `r mse_model_2`(.5 pts)
+
+18. What is the value of the Bayesian Information Criterion for model 2?
+
+```{r bic-m2-s2, echo = TRUE}
+bic_model_2 <- n_total_2 * log(mse_model_2) + log(n_total_2)
+```
+
+**ANS:** `r bic_model_2` (.5 pts)
+
+19. Which of the two models would you select and why?
+
+**ANS:**  .5 pts for saying they would pick the one that had the lesser BIC AND saying that's why they'd pick it (even if the BIC they're using for that decision was incorrect)
+
+
+20. What does the Model that you selected tell us about our research question?
+
+**ANS:** .5 for saying something reasonable in the context of their BIC (if model 1 is better [which it should be], there's no difference from before to after; if model 2 is better [which it shouldn't be], there is a difference) (.5 pts)
+
