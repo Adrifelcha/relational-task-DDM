@@ -1,0 +1,73 @@
+---
+title: "Modeling 101: A simple Bernoulli model"
+author: "Adriana F. Chávez De la Peña"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(R2jags)  #Load up packages
+library(brms)
+```
+
+# Load the data
+
+```{r}
+datos <- read.csv("../00_RawMaterial/datos.csv")
+
+I <- length(unique(datos$subID))
+J <- length(unique(datos$cond))
+N <- nrow(datos)
+
+Y <- datos$rt
+C <- datos$acc
+cond <- as.numeric(datos$cond)
+sub <- as.numeric(datos$subID)
+```
+
+# Write up the model
+
+The response observed for any participant $i$ on the $k^{th}$ trial of condition $j$ can be modeled as the outcome of a Bernoulli process as:
+
+\begin{align*}
+Y_{ijk} \sim \mbox{Bernoulli}(\theta_j)
+\end{align*}
+
+with uninformative prior:
+
+\begin{align*}
+\theta_j \sim \mbox{Uniform}(0,1)
+\end{align*}
+
+```{r}
+write('
+model{
+    # Likelihood
+    for (i in 1:N) {
+        C[i] ~ dbern(theta[cond[i]])
+    }
+    # Priors
+      for(j in 1:J) {
+        theta[j] ~ dunif(0,1)
+      }
+}',  'bernoulli.txt')
+```
+
+```{r}
+data <- list("C", "cond","J","N")
+
+myinits <-	list(list(theta = rep(0,J)))
+
+parameters <- c("theta")
+
+samples <- jags(data, inits=myinits, parameters, model.file = "bernoulli.txt", 
+	         n.chains=1, n.iter=5000, n.burnin=500, n.thin=1)
+
+theta <- samples$BUGSoutput$sims.list$theta
+```
+
+```{r}
+apply(theta,2,mean)
+tapply(datos$acc,datos$cond,mean)
+```
