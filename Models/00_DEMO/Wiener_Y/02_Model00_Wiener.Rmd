@@ -1,0 +1,107 @@
+---
+title: "Modeling 101-A: A Wiener process"
+author: "Adriana F. Chávez De la Peña"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(R2jags)  #Load up packages
+library(brms)
+
+# Run from home (PV 2104)
+#load.module(name="wiener",
+#            path="/usr/lib/x86_64-linux-gnu/JAGS/lib/JAGS/modules-4/")
+
+# Run from office
+load.module(name="wiener",
+            path="/usr/lib/JAGS/modules-4/")
+```
+
+```{r, eval=FALSE}
+#library(RWiener)
+
+#Y <- rwiener(1000,alpha=100,delta=1,tau=1,beta = 0.5)
+#hist(Y$q, breaks=20)
+```
+
+# Load the data
+
+```{r}
+datos <- read.csv("../../../../00_RawMaterial/datos.csv")
+datos <- datos[-which(datos$rt==0),]
+
+N <- nrow(datos)
+RT <- datos$rt/1000
+#C <- datos$acc
+C <- datos$resp
+
+Y<-RT
+Y[C==0] <- -RT[C==0]
+```
+
+# The model
+
+\begin{align*}
+Y = (Choice,RT)
+\end{align*}
+
+\begin{align*}
+Y_{ijk} \sim \mbox{Wiener}(\alpha_j,\tau_j,\beta_j,\delta_j)
+\end{align*}
+
+with uninformative priors:
+
+\begin{align*}
+\alpha_j \sim \mbox{Uniform}(0,100)\\
+\tau_j \sim \mbox{InverseGamma}(0.5,0.5)\\
+\beta_j \sim \mbox{Uniform}(0,1)\\
+\delta_j \sim \mbox{Normal}(0,20)\\
+\end{align*}
+
+where:
+
+\begin{align*}
+\alpha && \mbox{Threshold separation} && \alpha &> 0\\
+\tau && \mbox{Non-decision time} && \tau &> 0\\
+\beta && \mbox{Bias towards "Yes"} && 0 < &\beta < 1\\
+\delta && \mbox{Drift rate} && \delta \sim &\mbox{Normal}(0,1)\\
+\end{align*}
+
+```{r}
+write('
+model {
+  for (i in 1:N) {
+    Y[i] ~ dwiener(alpha,tau,beta,delta)
+  }
+  alpha ~ dunif(-5,5)
+  tau ~ dunif(0,1)
+  beta ~ dunif(0,1)
+  delta ~ dunif(-5,5)
+}',  'wiener00.txt')
+```
+
+```{r}
+dat <- list(Y=Y,N=N)
+inits <- list(alpha=1,tau=0.001,beta=0.5,delta=0)
+model <- jags.model("./wiener00.txt",data=dat,inits=inits,n.chains=1,n.adapt=0)
+samples <- jags.samples(model,c("alpha","tau","beta","delta"),n.iter=1000,thin=1)
+
+save(samples,file="./samples.RData")
+```
+
+```{r}
+alpha <- samples$alpha[,,]
+beta <- samples$beta[,,]
+delta <- samples$delta[,,]
+tau <- samples$tau[,,]
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(density(alpha), lwd=2, col="green4", main=expression(paste(alpha)),cex.main=3)
+plot(density(beta), lwd=2, col="indianred1", main=expression(paste(beta)),cex.main=2.6)
+plot(density(delta),lwd=2, col="orange4", main=expression(paste(delta)),cex.main=3)
+plot(density(tau), lwd=2, col="blue4", main=expression(paste(tau)),cex.main=3)
+```
