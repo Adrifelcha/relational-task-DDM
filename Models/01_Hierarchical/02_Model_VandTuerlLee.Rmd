@@ -1,0 +1,264 @@
+---
+title: "Modeling 101-A: A Wiener per Task"
+author: "Adriana F. Chávez De la Peña"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(R2jags)  #Load up packages
+library(brms)
+library(dplyr)
+
+# Run from home (PV 2104)
+load.module(name="wiener",
+            path="/usr/lib/x86_64-linux-gnu/JAGS/lib/JAGS/modules-4/")
+
+# Run from office
+#load.module(name="wiener",
+#            path="/usr/lib/JAGS/modules-4/")
+```
+
+```{r, eval=FALSE}
+#library(RWiener)
+
+#Y <- rwiener(1000,alpha=100,delta=1,tau=1,beta = 0.5)
+#hist(Y$q, breaks=20)
+```
+
+# Load the data
+
+```{r}
+datos <- read.csv("../00_RawMaterial/datos.csv")
+rt.0 <- which(datos$rt==0)
+datos <- datos[-rt.0,]
+
+I <- length(unique(datos$subID))
+J <- length(unique(datos$cond))
+N <- nrow(datos)
+
+RT <- datos$rt/1000
+C <- datos$resp
+
+task <- rep(2,N)
+task[datos$cond=="control"] <- 1
+
+sub <- as.factor(datos$subID)
+levels(sub) <- c(1:I)
+
+Y<-RT
+Y[C==0] <- -RT[C==0]
+
+get.init <- function(a,b){b+((a-b)/2)}
+```
+
+# The model
+
+\begin{align*}
+Y = (Choice,RT)
+\end{align*}
+
+\begin{align*}
+Y_{ijk} \sim \mbox{Wiener}(\alpha_j,\tau_j,\beta_j,\delta_j)
+\end{align*}
+
+with uninformative priors:
+
+\begin{align*}
+\alpha_j \sim \mbox{Uniform}(0,100)\\
+\tau_j \sim \mbox{InverseGamma}(0.5,0.5)\\
+\beta_j \sim \mbox{Uniform}(0,1)\\
+\delta_j \sim \mbox{Normal}(0,20)\\
+\end{align*}
+
+where:
+
+\begin{align*}
+\alpha && \mbox{Threshold separation} && \alpha &> 0\\
+\tau && \mbox{Non-decision time} && \tau &> 0\\
+\beta && \mbox{Bias towards "Yes"} && 0 < &\beta < 1\\
+\delta && \mbox{Drift rate} && \delta \sim &\mbox{Normal}(0,1)\\
+\end{align*}
+
+```{r original-code, eval=FALSE}
+write('
+model {
+
+    # Alpha = Boundary distance
+    mu.alpha ~ dunif(0.02,0.30)
+    sigma.alpha ~ dunif(0.0001,0.15)
+    prec.alpha <- pow(sigma.alpha,-2)
+    
+    beta <- 0.5
+    
+    # Theta = Mean ND-RT
+    mu.theta ~ dunif(0.02,0.70)
+    sigma.theta ~ dunif(0.0001,0.15)
+    prec.theta <- pow(sigma.theta,-2)
+    
+    # Ji = Variance on ND-RT
+    mu.chi ~ dunif(0.0001,0.15)
+    sigma.chi ~ dunif(0.0001,0.10)
+    prec.chi <- pow(sigma.chi,-2)
+    
+    # Eta = Variance on drift rate
+    mu.eta ~ dunif(0.001,0.45)
+    sigma.eta ~ dunif(0.0001,0.15)
+    prec.eta <- pow(sigma.eta,-2)
+
+    for(i in 1:J){
+      # Nu = Mean drift rate
+      mu.nu[i] ~ dunif(-.5,.6)
+      sigma.nu[i] ~ dunif(0,0.6)
+      prec.nu[i] <- pow(sigma.nu[i],-2)
+    }
+
+    for(p in 1:I){
+    
+      # Alpha = Boundary distance
+      alpha[p] ~ dnorm(mu.alpha,prec.alpha)T(0.01,0.25)
+      # Theta = Mean ND-RT
+      theta[p] ~ dnorm(mu.theta,prec.theta)T(0.01,0.80)
+      # Ji = Variance on ND-RT
+      chi[p] ~ dnorm(mu.chi,prec.chi)T(0.00001,0.49)
+      prec.tau[p] <- pow(chi[p],-2)
+      # Eta = Variance on drift rate
+      eta[p] ~ dnorm(mu.eta,prec.eta)T(0.00001,0.49)
+      prec.delta[p] <- pow(eta[p],-2)
+  
+        # For each participant, theres a condition-level distribution
+        for(i in 1:J){
+            # Nu = Mean drift rate
+            nu[p,i] ~ dnorm(mu.nu[i],prec.nu[i])T(-.7,.7)
+        }
+      }
+
+    for (i in 1:N) {
+      # Trial-by-trial variability in ND-RT and drift rates
+      tau[i] ~ dnorm(theta[sub[i]],prec.tau[sub[i]])T(0,)
+      delta[i] ~ dnorm(nu[sub[i],task[i]],prec.delta[sub[i]])T(0,)
+    
+      Y[i] ~ dwiener(alpha[sub[i]],tau[i],beta,delta[i])
+    }
+  
+
+}',  'wiener_w8_1.txt')
+```
+
+```{r my-own-priors, eval=TRUE}
+write('
+model {
+
+    # Alpha = Boundary distance
+    mu.alpha ~ dunif(0.01,50)
+    sigma.alpha ~ dunif(0.0001,50)
+    prec.alpha <- pow(sigma.alpha,-2)
+    
+    beta <- 0.5
+    
+    # Theta = Mean ND-RT
+    mu.theta ~ dunif(0.02,50)
+    sigma.theta ~ dunif(0.0001,15)
+    prec.theta <- pow(sigma.theta,-2)
+    
+    # Ji = Variance on ND-RT
+    mu.chi ~ dunif(0.0001,50)
+    sigma.chi ~ dunif(0.0001,20)
+    prec.chi <- pow(sigma.chi,-2)
+    
+    # Eta = Variance on drift rate
+    mu.eta ~ dunif(0.001,45)
+    sigma.eta ~ dunif(0.0001,55)
+    prec.eta <- pow(sigma.eta,-2)
+
+    for(i in 1:J){
+      # Nu = Mean drift rate
+      mu.nu[i] ~ dunif(-10,10)
+      sigma.nu[i] ~ dunif(0.001,60)
+      prec.nu[i] <- pow(sigma.nu[i],-2)
+    }
+
+    for(p in 1:I){
+    
+      # Alpha = Boundary distance
+      alpha[p] ~ dnorm(mu.alpha,prec.alpha)T(0.0001,)
+      # Theta = Mean ND-RT
+      theta[p] ~ dnorm(mu.theta,prec.theta)T(0.01,0.80)
+      # Ji = Variance on ND-RT
+      chi[p] ~ dnorm(mu.chi,prec.chi)T(0.00001,0.49)
+      prec.tau[p] <- pow(chi[p],-2)
+      # Eta = Variance on drift rate
+      eta[p] ~ dnorm(mu.eta,prec.eta)T(0.00001,0.49)
+      prec.delta[p] <- pow(eta[p],-2)
+  
+        # For each participant, theres a condition-level distribution
+        for(i in 1:J){
+            # Nu = Mean drift rate
+            nu[p,i] ~ dnorm(mu.nu[i],prec.nu[i])
+        }
+      }
+
+    for (i in 1:N) {
+      # Trial-by-trial variability in ND-RT and drift rates
+      tau[i] ~ dnorm(theta[sub[i]],prec.tau[sub[i]])T(0,)
+      delta[i] ~ dnorm(nu[sub[i],task[i]],prec.delta[sub[i]])T(0,)
+    
+      Y[i] ~ dwiener(alpha[sub[i]],tau[i],beta,delta[i])
+    }
+  
+
+}',  'wiener_w8_1.txt')
+```
+
+```{r}
+y = Y
+
+dat <- list(Y=y,N=N,I=I,J=J,sub=sub,task=task)
+
+inits <- list(mu.alpha=0.16,sigma.alpha=0.075,
+              mu.eta=0.225,sigma.eta=0.075,
+              mu.chi=0.075,sigma.chi=0.05,
+              mu.theta=0.36,sigma.theta=0.075,
+              mu.nu=rep(0.05,J),sigma.nu=rep(0.3,J))
+
+model <- jags.model("./wiener_w8_1.txt",data=dat,
+                    inits=inits,n.chains=1,n.adapt=0)
+
+samples <- jags.samples(model,
+                        c("mu.alpha","sigma.alpha","mu.eta","sigma.eta","mu.chi",
+                          "sigma.chi","mu.theta","sigma.theta"),n.iter=1000,thin=1)
+```
+
+
+
+```{r}
+alpha <- samples$alpha[,,]
+beta <- samples$beta[,,]
+delta <- samples$delta[,,]
+tau <- samples$tau[,,]
+```
+
+```{r}
+par(mfrow=c(2,2))
+
+plot(density(alpha[1,]), xlim=c(min(alpha),max(alpha)), lwd=2, col="purple4", main=expression(paste(alpha)),
+     cex.main=3,ylim=c(0,3.5))
+for(i in 2:I){
+  lines(density(alpha[i,]), col=i, lwd=1.5)}
+
+plot(density(beta[1,]), xlim=c(min(beta),max(beta)), lwd=2, col="purple4", main=expression(paste(beta)),
+     cex.main=3, ylim=c(0,7))
+for(i in 2:I){
+  lines(density(beta[i,]), col=i, lwd=1.5)}
+
+plot(density(delta[,2]), xlim=c(min(delta),max(delta)), lwd=2, col="purple4", main=expression(paste(delta)),
+     cex.main=3, ylim=c(0,2))
+for(i in 2:I){
+  lines(density(delta[i,]), col=i, lwd=1.5)}
+
+plot(density(tau[1,]), xlim=c(min(tau),max(tau)), lwd=2, col="purple4", main=expression(paste(tau)),
+     cex.main=3,ylim=c(0,15))
+for(i in 2:I){
+  lines(density(tau[i,]), col=i, lwd=1.5)}
+```

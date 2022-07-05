@@ -1,0 +1,44 @@
+
+model {
+  
+  ###### Trial-by-trial variation
+  for (i in 1:N) {
+    Y[i] ~ dwiener(alpha,tau[subj[i]],beta[task[i]],delta[i])
+    delta[i] ~ dnorm(nu[subj[i],task[i]],sigmaDelta)
+  }
+  
+  ###### Task-by-Participant mean drift rate
+  for(i in 1:I){
+    for(j in 1:J){
+        nu[i,j] ~ dnorm(muNu,precNu)
+    }
+  }
+  
+  ###### Task-by-Participant mean drift rate
+  for(i in 1:I){
+      tau[i] ~ dnorm(muTau,precTau)
+  }
+  
+  ###### Task-by-Participant mean drift rate
+  for(j in 1:J){
+      beta[j] ~ dnorm(muBeta,precBeta)
+  }
+  
+  alpha ~ dunif(0,10000)
+  
+  ################ PRIORS
+  muBeta ~ dunif(0,1)
+  muTau ~ dunif(0,2000)
+  muNu ~ dnorm(0,300)
+  
+  sigmaBeta ~ dunif(0.0001,1000)
+  sigmaTau ~ dunif(0.0001,1000)
+  sigmaNu ~ dnorm(0.0001,1000)
+  sigmaDelta ~ dnorm(0.0001,1000)
+  
+  precBeta <- pow(sigmaBeta,-2) 
+  precTau <- pow(sigmaTau,-2) 
+  precNu <- pow(sigmaNu,-2) 
+  
+  
+}

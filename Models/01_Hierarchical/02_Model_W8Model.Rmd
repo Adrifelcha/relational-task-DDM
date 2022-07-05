@@ -1,0 +1,246 @@
+---
+title: "Modeling 101-A: A Wiener per Task"
+author: "Adriana F. Chávez De la Peña"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(R2jags)  #Load up packages
+library(brms)
+library(dplyr)
+
+# Run from home (PV 2104)
+load.module(name="wiener",
+            path="/usr/lib/x86_64-linux-gnu/JAGS/lib/JAGS/modules-4/")
+
+# Run from office
+#load.module(name="wiener",
+#            path="/usr/lib/JAGS/modules-4/")
+```
+
+```{r, eval=FALSE}
+#library(RWiener)
+
+#Y <- rwiener(1000,alpha=100,delta=1,tau=1,beta = 0.5)
+#hist(Y$q, breaks=20)
+```
+
+# Load the data
+
+```{r}
+datos <- read.csv("../../../00_RawMaterial/datos.csv")
+datos <- datos[-which(datos$rt<50),]
+
+I <- length(unique(datos$subID))
+J <- length(unique(datos$cond))
+N <- nrow(datos)
+
+RT <- datos$rt
+C <- datos$resp
+
+task <- rep(2,N)
+task[datos$cond=="control"] <- 1
+
+subj <- as.factor(datos$subID)
+levels(subj) <- c(1:I)
+
+Y<-RT
+Y[C==0] <- -RT[C==0]
+```
+
+# The model
+
+\begin{align*}
+Y = (Choice,RT)
+\end{align*}
+
+\begin{align*}
+Y_{ijk} \sim \mbox{Wiener}(\alpha_j,\tau_j,\beta_j,\delta_j)
+\end{align*}
+
+with uninformative priors:
+
+\begin{align*}
+\alpha_j \sim \mbox{Uniform}(0,100)\\
+\tau_j \sim \mbox{InverseGamma}(0.5,0.5)\\
+\beta_j \sim \mbox{Uniform}(0,1)\\
+\delta_j \sim \mbox{Normal}(0,20)\\
+\end{align*}
+
+where:
+
+\begin{align*}
+\alpha && \mbox{Threshold separation} && \alpha &> 0\\
+\tau && \mbox{Non-decision time} && \tau &> 0\\
+\beta && \mbox{Bias towards "Yes"} && 0 < &\beta < 1\\
+\delta && \mbox{Drift rate} && \delta \sim &\mbox{Normal}(0,1)\\
+\end{align*}
+
+```{r}
+write('
+model {
+  #Likelihood
+  for (i in 1:N) {
+    Y[i] ~ dwiener(alpha[i],tau[i],beta,delta[i])
+    tau[i] ~ dunif(tau_low[task[i]],tau_high[task[i]])
+    alpha[i] ~ dunif(alpha_low[task[i]],alpha_high[task[i]])
+    delta[i] ~ dnorm(nu[task[i],subj[i]],eta)
+  }
+  
+  #Priors
+  for (j in 1:J) {
+  tau_high[j] ~ dunif(0.01,500)
+  tau_low[j] ~ dunif(0,tau_high[j])
+  alpha_high[j] ~ dunif(0.01,500)
+  alpha_low[j] ~ dunif(0,alpha_high[j])
+  mu.nu[j] ~ dunif(-100,100)
+  sigma.nu[j] ~ dunif(0.0001,100)
+  prec.nu[j] <- pow(sigma.nu[j],-2)
+  }
+  
+  for(i in 1:I){
+    for(j in 1:J){
+    nu[j,i] ~ dnorm(mu.nu[j],prec.nu[j])
+    }
+  }
+  
+  beta ~ dunif(0.4,0.6)
+  eta ~ dgamma(2,2)
+  
+}',  'wienerW8a.txt')
+```
+
+```{r}
+y = Y*1000
+
+dat <- list(Y=y,N=N,I=I,J=J, subj=subj,task=task)
+inits <- list(alpha_high=rep(30,J),alpha_low=rep(10,J),
+              tau_high=rep(200,J),tau_low=rep(10,J),
+              mu.nu = rep(50,J), sigma.nu = rep(1,J), eta=10
+              )
+model <- jags.model("./wienerW8a.txt",data=dat,n.chains=1,n.adapt=0)#,inits=inits)
+samples <- jags.samples(model,c("nu","eta","alpha","beta","tau","delta","alpha_low",
+                                "alpha_high","tau_low","tau_high","mu.nu","sigma.nu"),n.iter=10000,thin=1)
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+beta <- samples$beta[1,,]
+
+x <- seq(1,length(beta),length.out=5000)
+plot(beta[x], pch=16, cex=0.5, type="l", ylab=expression(paste(beta)), xlab="Iteration")
+
+plot(density(beta), xlim=c(min(beta),max(beta)), lwd=2, col="purple4",cex.main=1.2)
+```
+
+
+```{r}
+par(mfrow=c(2,2))
+
+alpha_low <- samples$alpha_low[,,]
+alpha_high <- samples$alpha_high[,,]
+alpha <- samples$alpha[,,]
+
+plot(density(alpha_low[1,]), xlim=c(225,max(alpha_low)), lwd=2, col="purple4",
+     main=expression(paste(alpha,"-low")), cex.main=1.2)
+lines(density(alpha_low[2,]), col="indianred4", lwd=1.5)
+legend("topleft",c("Control","Relational"),col=(c("purple4","indianred4")),lwd=2,cex=0.6)
+
+
+plot(density(alpha_high[1,]), xlim=c(229,232), lwd=2, col="purple4",
+     main=expression(paste(alpha,"-high")), cex.main=1.2)
+lines(density(alpha_high[2,]), col="indianred4", lwd=1.5)
+
+
+x <- seq(1,length(alpha_low[1,]),length.out=5000)
+plot(alpha_low[1,x], pch=16, cex=0.5, type="l", ylab=expression(paste(alpha_low)), 
+     xlab="Iteration", col="darkgoldenrod3", ylim=c(140,250))
+x <- seq(1,length(alpha_low[2,]),length.out=5000)
+lines(alpha_low[2,], pch=16, cex=0.5, type="l", col="indianred2")
+x <- seq(1,length(alpha_high[2,]),length.out=5000)
+lines(alpha_high[2,], pch=16, cex=0.5, type="l", col="red",lty=2)
+x <- seq(1,length(alpha_high[1,]),length.out=5000)
+lines(alpha_high[1,], pch=16, cex=0.5, type="l", col="green",lty=2)
+
+
+predPost1 <- runif(length(alpha_low[1,]),alpha_low[1,],alpha_high[1,])
+predPost2 <- runif(length(alpha_low[2,]),alpha_low[2,],alpha_high[2,])
+plot(density(predPost1), xlim=c(225,231), lwd=2, col="purple4", ylim=c(0,1.2),
+     main=expression(paste(alpha,"- Posterior")), cex.main=1.2)
+lines(density(predPost2), cex=0.5, type="l", col="indianred2")
+```
+
+```{r}
+par(mfrow=c(2,2))
+
+tau_low <- samples$tau_low[,,]
+tau_high <- samples$tau_high[,,]
+
+tau <- samples$tau[,,]
+
+
+plot(density(tau_low[1,]), xlim=c(min(tau_low),max(tau_low)), lwd=2, col="darkgoldenrod3", 
+     main=expression(paste(tau,"-low")), cex.main=1.2)
+for(i in 2:J){lines(density(tau_low[i,]), col=i, lwd=1.5)}
+legend("topleft",c("Control","Relational"),col=(c("darkgoldenrod3",2)),lwd=2,cex=0.6)
+
+plot(density(tau_high[1,]), xlim=c(min(tau_high),max(tau_high)), lwd=2, col="darkgoldenrod3", 
+     main=expression(paste(tau,"-high")), cex.main=1.2)
+for(i in 2:J){lines(density(tau_high[i,]), col=i, lwd=1.5)}
+
+x <- seq(1,length(tau_low[1,]),length.out=5000)
+plot(tau_low[1,x], pch=16, cex=0.5, type="l", ylab=expression(paste(tau_low/up)), 
+     xlab="Iteration", col="darkgoldenrod3")#, ylim=c(370,500))
+x <- seq(1,length(tau_low[2,]),length.out=5000)
+lines(tau_low[2,], pch=16, cex=0.5, type="l", col="indianred2")
+x <- seq(1,length(tau_high[2,]),length.out=5000)
+lines(tau_high[2,], pch=16, cex=0.5, type="l", col="indianred2",lty=2)
+x <- seq(1,length(tau_high[1,]),length.out=5000)
+lines(tau_high[1,], pch=16, cex=0.5, type="l", col="darkgoldenrod3",lty=2)
+
+predPost1 <- runif(length(tau_low[1,]),tau_low[1,],tau_high[1,])
+predPost2 <- runif(length(tau_low[2,]),tau_low[2,],tau_high[2,])
+plot(density(predPost1), lwd=2, col="darkgoldenrod3",
+     main=expression(paste(tau,"- Posterior")), cex.main=1.2)
+lines(density(predPost2), cex=0.5, type="l", col=2)
+```
+
+
+
+```{r}
+par(mfrow=c(2,2))
+
+mu.nu1 <- samples$mu.nu[1,,]
+mu.nu2 <- samples$mu.nu[2,,]
+
+sigma.nu1 <- samples$sigma.nu[1,,]
+sigma.nu2 <- samples$sigma.nu[2,,]
+
+nu1 <- samples$nu[1,,,]
+nu2 <- samples$nu[2,,,]
+
+plot(density(mu.nu1), xlim=c(-.7,0.7), lwd=2, col="darkgoldenrod3", 
+     main=expression(paste(mu,"_",nu)), cex.main=1.2)
+lines(density(mu.nu2), col=2, lwd=1.5)
+legend("topleft",c("Control","Relational"),col=(c("darkgoldenrod3",2)),lwd=2,cex=0.6)
+
+plot(density(sigma.nu1), xlim=c(0,0.7), lwd=2, col="darkgoldenrod3", 
+     main=expression(paste(sigma,"_",nu)), cex.main=1.2)
+lines(density(sigma.nu2), col=2, lwd=1.5)
+
+
+x <- seq(1,length(nu1),length.out=5000)
+plot(nu1[x], pch=16, cex=0.5, type="l", ylab=expression(paste(nu)), 
+     xlab="Iteration", col="darkgoldenrod3", ylim=c(-0.01,0.01))
+x <- seq(1,length(nu2),length.out=5000)
+lines(nu2[x], pch=16, cex=0.5, type="l", col="indianred2")
+
+plot(density(nu1), xlim=c(min(nu1),max(nu1)), lwd=2, col="darkgoldenrod1",
+     main=expression(paste(nu)), cex.main=1.2)
+lines(density(nu2), col="indianred2", lwd=1.5)
+
+
+```

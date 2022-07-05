@@ -1,0 +1,151 @@
+ ---
+title: "Hierarchical Model 1"
+author: "Adriana F. Chávez De la Peña"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(R2jags)  #Load up packages
+library(brms)
+library(dplyr)
+
+# Run from home (PV 2104)
+load.module(name="wiener",
+            path="/usr/lib/x86_64-linux-gnu/JAGS/lib/JAGS/modules-4/")
+
+# Run from office
+#load.module(name="wiener",
+#            path="/usr/lib/JAGS/modules-4/")
+```
+
+
+# Load the data
+
+```{r}
+datos <- read.csv("../../../RawData/datos.csv")
+datos <- datos[-which(datos$rt<50),]
+datos <- datos[-which(datos$subID=="735148")]
+
+N <- nrow(datos)
+RT <- datos$rt
+C <- datos$resp
+
+J <- length(unique(datos$cond))
+task <- rep(2,N)
+task[datos$cond=="control"] <- 1
+
+I <- length(unique(datos$subID))
+subj <- as.factor(datos$subID)
+levels(subj) <- c(1:I)
+
+Y<-RT
+Y[C==0] <- -RT[C==0]
+```
+
+# The model
+
+\begin{align*}
+Y = (Choice,RT)
+\end{align*}
+
+\begin{align*}
+Y_{ijk} \sim \mbox{Wiener}(\alpha_j,\tau_j,\beta_j,\delta_j)
+\end{align*}
+
+with uninformative priors:
+
+\begin{align*}
+\alpha_j \sim \mbox{Uniform}(0,100)\\
+\tau_j \sim \mbox{InverseGamma}(0.5,0.5)\\
+\beta_j \sim \mbox{Uniform}(0,1)\\
+\delta_j \sim \mbox{Normal}(0,20)\\
+\end{align*}
+
+where:
+
+\begin{align*}
+\alpha && \mbox{Threshold separation} && \alpha &> 0\\
+\tau && \mbox{Non-decision time} && \tau &> 0\\
+\beta && \mbox{Bias towards "Yes"} && 0 < &\beta < 1\\
+\delta && \mbox{Drift rate} && \delta \sim &\mbox{Normal}(0,1)\\
+\end{align*}
+
+```{r}
+write('
+model {
+  
+  ###### Trial-by-trial variation
+        for (i in 1:N) {
+          Y[i] ~ dwiener(alpha[task[i]],tau[subj[i]],beta[task[i]],delta[i])
+          delta[i] ~ dnorm(nu[subj[i],task[i]],pow(1,-2))
+        }
+  
+  ###### Task-by-Participant mean drift rate
+        for(i in 1:I){
+          for(j in 1:J){
+              nu[i,j] ~ dnorm(muNu,precNu)
+          }
+        }
+        
+  ###### Task-by-Participant mean drift rate
+        for(i in 1:I){
+            tau[i] ~ dnorm(muTau,precTau)
+        }
+  
+  ###### Task-by-Participant mean drift rate
+        for(j in 1:J){
+            alpha[j] ~ dnorm(muAlpha,precAlpha)
+            beta[j] ~ dnorm(muBeta,precBeta)
+        }
+  
+  ################ PRIORS
+        muBeta ~ dunif(0,1)
+        sigmaBeta ~ dunif(0.0001,0.5)
+        precBeta <- pow(sigmaBeta,-2) 
+        
+        muAlpha ~ dunif(0,500)
+        sigmaAlpha ~ dunif(0.0001,1000)
+        precAlpha <- pow(sigmaAlpha,-2) 
+        
+        muTau ~ dunif(0,1000)
+        sigmaTau ~ dunif(0.0001,200)
+        precTau <- pow(sigmaTau,-2) 
+        
+        muNu ~ dnorm(0,500)
+        sigmaNu ~ dnorm(0.0001,1000)
+        precNu <- pow(sigmaNu,-2) 
+}',  'hierarchical_2.txt')
+```
+
+```{r}
+y = Y*1000
+
+dat <- list(Y = y,
+            N = N,
+            I = I,
+            J = J,
+            subj = subj,
+            task = task)
+
+inits <- list(alpha_high=rep(30,J),alpha_low=rep(10,J),
+              tau_high=rep(200,J),tau_low=rep(10,J),
+              mu.nu = rep(50,J), sigma.nu = rep(1,J), eta=10
+              )
+model <- jags.model("./hierarchical_W10.txt",data=dat,n.chains=1,n.adapt=0)#,inits=inits)
+samples <- jags.samples(model,
+                        c("alpha","beta","tau","delta","nu","sigmaDelta",
+                          "muAlpha","muBeta","muTau","muNu",
+                          "sigmaAlpha","sigmaBeta","sigmaTau","sigmaNu"), n.iter=10000,thin=1)
+
+save(samples,file="./samples.RData")
+```
+
+```{r}
+alpha <- samples$alpha[,,]
+beta <- samples$beta[,,]
+delta <- samples$delta[,,]
+tau <- samples$tau[,,]
+```
+

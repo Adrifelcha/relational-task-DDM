@@ -1,0 +1,31 @@
+
+model {
+  #Likelihood
+  for (i in 1:N) {
+    Y[i] ~ dwiener(alpha[i],tau[i],beta,delta[i])
+    tau[i] ~ dunif(tau_low[task[i]],tau_high[task[i]])
+    alpha[i] ~ dunif(alpha_low[task[i]],alpha_high[task[i]])
+    delta[i] ~ dnorm(nu[task[i],subj[i]],eta)
+  }
+  
+  #Priors
+  for (j in 1:J) {
+  tau_high[j] ~ dunif(0.01,500)
+  tau_low[j] ~ dunif(0,tau_high[j])
+  alpha_high[j] ~ dunif(0.01,500)
+  alpha_low[j] ~ dunif(0,alpha_high[j])
+  mu.nu[j] ~ dunif(-100,100)
+  sigma.nu[j] ~ dunif(0.0001,100)
+  prec.nu[j] <- pow(sigma.nu[j],-2)
+  }
+  
+  for(i in 1:I){
+    for(j in 1:J){
+    nu[j,i] ~ dnorm(mu.nu[j],prec.nu[j])
+    }
+  }
+  
+  beta ~ dunif(0.4,0.6)
+  eta ~ dgamma(2,2)
+  
+}
