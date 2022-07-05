@@ -1,0 +1,112 @@
+---
+title: "Graphical models"
+author: "Adriana F. Chávez De la Peña"
+date: "6/10/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+$$\mu_\nu \sim \mbox{Normal}(0,300)$$
+\vspace{-0.25in}
+$$\sigma_\nu \sim \mbox{Uniform}(0,1000)$$
+
+\vspace{-.2in}
+
+$$\mu_\tau \sim \mbox{Uniform}(0,1000)$$
+\vspace{-0.25in}
+$$\sigma_\tau \sim \mbox{Uniform}(0,1000)$$
+
+\vspace{-.2in}
+
+$$\mu_\nu \sim \mbox{Normal}(,)$$
+\vspace{-0.25in}
+$$\sigma_\nu \sim \mbox{Uniform}(0,1000)$$
+
+\vspace{-.2in}
+
+$$\mu_\nu \sim \mbox{Normal}(,)$$
+\vspace{-0.25in}
+$$\sigma_\nu \sim \mbox{Uniform}(0,1000)$$
+
+\vspace{-0.2in}
+
+$$\sigma_\delta \sim \mbox{Uniform}(0,250)$$
+\vspace{-0.25in}
+$$\nu_{ij} \sim \mbox{Normal}(\mu_\nu,\sigma_\nu)$$
+
+\vspace{-0.32in}
+
+$$\delta_{ijk} \sim \mbox{Normal}(\nu_{ij},\sigma_\delta)$$
+\vspace{-0.15in}
+$$\alpha_j \sim \mbox{Normal}(\mu_\alpha,\sigma_\alpha)$$
+\vspace{-0.25in}
+$$\beta_j \sim \mbox{Normal}(\mu_\beta,\sigma_\beta)$$
+\vspace{-0.25in}
+$$\tau_i \sim \mbox{Normal}(\mu_\tau,\sigma_\tau)$$
+
+\vspace{-0.15in}
+
+$$Y_{ijk} \sim \mbox{Wiener}(\alpha_j,\tau_i,\beta_j,\delta_{ijk})$$
+
+\vspace{-0.15in}
+
+$$i^{th} \mbox{ participant}$$
+\vspace{-0.25in}
+$$j^{th} \mbox{ task}$$
+\vspace{-0.25in}
+$$k^{th} \mbox{ trial}$$
+
+################
+
+$$\mu_\nu \sim \mbox{Normal}(0,300)$$
+\vspace{-0.25in}
+$$\sigma_\nu \sim \mbox{Uniform}(0,1000)$$
+
+\vspace{-.2in}
+
+$$\mu_\tau \sim \mbox{Uniform}(0,1000)$$
+\vspace{-0.25in}
+$$\sigma_\tau \sim \mbox{Uniform}(0,1000)$$
+
+\vspace{-.2in}
+
+$$\mu_\nu \sim \mbox{Normal}(,)$$
+\vspace{-0.25in}
+$$\sigma_\nu \sim \mbox{Uniform}(0,1000)$$
+
+\vspace{-.2in}
+
+$$\mu_\nu \sim \mbox{Normal}(,)$$
+\vspace{-0.25in}
+$$\sigma_\nu \sim \mbox{Uniform}(0,1000)$$
+
+\vspace{-0.2in}
+
+$$\sigma_\delta \sim \mbox{Uniform}(0,250)$$
+\vspace{-0.25in}
+$$\nu_{ij} \sim \mbox{Normal}(\mu_\nu,\sigma_\nu)$$
+
+\vspace{-0.32in}
+
+$$\delta_{ijk} \sim \mbox{Normal}(\nu_{ij},\sigma_\delta)$$
+\vspace{-0.15in}
+$$\tau_i \sim \mbox{Normal}(\mu_\tau,\sigma_\tau)$$
+\vspace{-0.25in}
+$$\beta_j \sim \mbox{Normal}(\mu_\beta,\sigma_\beta)$$
+
+\vspace{-0.15in}
+
+$$Y_{ijk} \sim \mbox{Wiener}(\alpha,\tau_i,\beta_j,\delta_{ijk})$$
+
+\vspace{-0.15in}
+
+$$i^{th} \mbox{ participant}$$
+\vspace{-0.25in}
+$$j^{th} \mbox{ task}$$
+\vspace{-0.25in}
+$$k^{th} \mbox{ trial}$$
