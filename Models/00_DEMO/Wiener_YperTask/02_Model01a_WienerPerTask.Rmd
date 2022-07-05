@@ -1,0 +1,135 @@
+---
+title: "Modeling 101-A: A Wiener per Task"
+author: "Adriana F. Chávez De la Peña"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(R2jags)  #Load up packages
+library(brms)
+
+# Run from home (PV 2104)
+load.module(name="wiener",
+            path="/usr/lib/x86_64-linux-gnu/JAGS/lib/JAGS/modules-4/")
+
+# Run from office
+#load.module(name="wiener",
+#            path="/usr/lib/JAGS/modules-4/")
+```
+
+```{r, eval=FALSE}
+#library(RWiener)
+
+#Y <- rwiener(1000,alpha=100,delta=1,tau=1,beta = 0.5)
+#hist(Y$q, breaks=20)
+```
+
+# Load the data
+
+```{r}
+datos <- read.csv("../00_RawMaterial/datos.csv")
+rt.0 <- which(datos$rt==0)
+datos <- datos[-rt.0,]
+
+I <- length(unique(datos$subID))
+J <- length(unique(datos$cond))
+N <- nrow(datos)
+
+RT <- datos$rt/1000
+C <- datos$resp
+
+task <- rep(2,N)
+task[datos$cond=="control"] <- 1
+
+sub <- as.numeric(datos$subID)
+
+Y<-RT
+Y[C==0] <- -RT[C==0]
+```
+
+# The model
+
+\begin{align*}
+Y = (Choice,RT)
+\end{align*}
+
+\begin{align*}
+Y_{ijk} \sim \mbox{Wiener}(\alpha_j,\tau_j,\beta_j,\delta_j)
+\end{align*}
+
+with uninformative priors:
+
+\begin{align*}
+\alpha_j \sim \mbox{Uniform}(0,100)\\
+\tau_j \sim \mbox{InverseGamma}(0.5,0.5)\\
+\beta_j \sim \mbox{Uniform}(0,1)\\
+\delta_j \sim \mbox{Normal}(0,20)\\
+\end{align*}
+
+where:
+
+\begin{align*}
+\alpha && \mbox{Threshold separation} && \alpha &> 0\\
+\tau && \mbox{Non-decision time} && \tau &> 0\\
+\beta && \mbox{Bias towards "Yes"} && 0 < &\beta < 1\\
+\delta && \mbox{Drift rate} && \delta \sim &\mbox{Normal}(0,1)\\
+\end{align*}
+
+```{r}
+write('
+model {
+  for (i in 1:N) {
+    Y[i] ~ dwiener(alpha[task[i]],tau[task[i]],beta[task[i]],delta[task[i]])
+  }
+  for (j in 1:J) {
+  alpha[j] ~ dunif(-5,5)
+  tau[j] ~ dunif(0,1)
+  beta[j] ~ dunif(0,1)
+  delta[j] ~ dunif(-5,5)
+  }
+}',  'wiener01a.txt')
+```
+
+```{r}
+dat <- list(Y=Y,N=N,J=J,task=task)
+inits <- list(alpha=rep(1,J),tau=rep(0.001,J),
+              beta=rep(0.5,J),delta=rep(0,J))
+model <- jags.model("./wiener01a.txt",data=dat,inits=inits,n.chains=1,n.adapt=0)
+samples <- jags.samples(model,c("alpha","tau","beta","delta"),n.iter=1000,thin=1)
+```
+
+```{r}
+alpha <- samples$alpha[,,]
+alpha <- cbind(alpha[1,],alpha[2,])
+
+beta <- samples$beta[,,]
+beta <- cbind(beta[1,],beta[2,])
+
+delta <- samples$delta[,,]
+delta <- cbind(delta[1,],delta[2,])
+
+tau <- samples$tau[,,]
+tau <- cbind(tau[1,],tau[2,])
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(density(alpha[,1]), xlim=c(min(alpha),max(alpha)), lwd=2, col="purple4", main=expression(paste(alpha)),cex.main=3)
+for(j in 2:J){
+  lines(density(alpha[,j]), col=j, lwd=2)}
+legend("topright",c("Relational","Control"), col=c("red","purple4"), lwd=2, cex=0.7)
+
+plot(density(beta[,1]), xlim=c(min(beta),max(beta)), lwd=2, col="purple4", main=expression(paste(beta)),cex.main=3)
+for(j in 2:J){
+  lines(density(beta[,j]), col=j, lwd=2)}
+
+plot(density(delta[,2]), xlim=c(min(delta),max(delta)), lwd=2, col="purple4", main=expression(paste(delta)),cex.main=3)
+for(j in 2:J){
+  lines(density(delta[,1]), col=j, lwd=2)}
+
+plot(density(tau[,1]), xlim=c(min(tau),max(tau)), lwd=2, col="purple4", main=expression(paste(tau)),cex.main=3)
+for(j in 2:J){
+  lines(density(tau[,j]), col=j, lwd=2)}
+```
